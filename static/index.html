@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Claude Relay</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --accent: #58a6ff;
+  --user-bg: #1f3a5f;
+  --assistant-bg: #1c2028;
+  --mic-off: #8b949e;
+  --mic-on: #f85149;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+header h1 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+#status {
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mic-off);
+}
+
+#status.connected .dot { background: #3fb950; }
+#status.error .dot { background: var(--mic-on); }
+
+/* Login */
+#login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 16px;
+  padding: 24px;
+}
+
+#login label {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+#login input {
+  width: 100%;
+  max-width: 300px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+}
+
+#login input:focus { border-color: var(--accent); }
+
+#login button {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Chat */
+#chat {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+#chat.active { display: flex; }
+
+/* Transcript */
+#transcript {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: var(--user-bg);
+  border-bottom-right-radius: 4px;
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background: var(--assistant-bg);
+  border-bottom-left-radius: 4px;
+}
+
+.msg.system {
+  align-self: center;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.msg .tool-badge {
+  display: inline-block;
+  background: #30363d;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+/* Input bar */
+#inputbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+#msginput {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+  resize: none;
+}
+
+#msginput:focus { border-color: var(--accent); }
+
+#sendbtn, #micbtn, #ttsbtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+#sendbtn {
+  background: var(--accent);
+  color: #fff;
+}
+
+#micbtn {
+  background: var(--surface);
+  border: 2px solid var(--mic-off);
+  color: var(--mic-off);
+  transition: all 0.2s;
+}
+
+#micbtn.recording {
+  border-color: var(--mic-on);
+  color: var(--mic-on);
+  animation: pulse 1.5s infinite;
+}
+
+#ttsbtn {
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-size: 16px;
+}
+
+#ttsbtn.off {
+  border-color: var(--mic-off);
+  color: var(--mic-off);
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248,81,73,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(248,81,73,0); }
+}
+
+/* SVG icons */
+svg { width: 20px; height: 20px; fill: currentColor; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Claude Relay</h1>
+  <div id="status"><span class="dot"></span><span id="statustext">disconnected</span></div>
+</header>
+
+<div id="login">
+  <label for="tokeninput">Enter auth token</label>
+  <input id="tokeninput" type="password" placeholder="token" autocomplete="off">
+  <button onclick="connect()">Connect</button>
+</div>
+
+<div id="chat">
+  <div id="transcript"></div>
+  <div id="inputbar">
+    <input id="msginput" type="text" placeholder="Message Claude..." autocomplete="off">
+    <button id="sendbtn" onclick="sendMessage()" title="Send">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+    <button id="micbtn" onclick="toggleMic()" title="Voice input">
+      <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+    </button>
+    <button id="ttsbtn" onclick="toggleTTS()" title="Toggle voice output">&#9834;</button>
+  </div>
+</div>
+
+<script>
+let ws = null;
+let ttsEnabled = true;
+let currentMsg = null;
+let currentText = '';
+let recognition = null;
+let isRecording = false;
+
+// --- Connection ---
+
+function connect() {
+  const token = document.getElementById('tokeninput').value.trim();
+  if (!token) return;
+  localStorage.setItem('relay_token', token);
+  openSocket(token);
+}
+
+function openSocket(token) {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = `${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`;
+
+  setStatus('connecting');
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    setStatus('connected');
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('chat').classList.add('active');
+    addSystemMsg('Connected to Claude Relay');
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      handleEvent(JSON.parse(e.data));
+    } catch {
+      console.log('non-json:', e.data);
+    }
+  };
+
+  ws.onclose = () => {
+    setStatus('disconnected');
+    addSystemMsg('Disconnected');
+    ws = null;
+  };
+
+  ws.onerror = () => {
+    setStatus('error');
+  };
+}
+
+function setStatus(state) {
+  const el = document.getElementById('status');
+  const text = document.getElementById('statustext');
+  el.className = state === 'connected' ? 'connected' : state === 'error' ? 'error' : '';
+  text.textContent = state;
+}
+
+// --- Messages ---
+
+function sendMessage() {
+  const input = document.getElementById('msginput');
+  const text = input.value.trim();
+  if (!text || !ws) return;
+
+  addUserMsg(text);
+  ws.send(JSON.stringify({ type: 'user_message', content: text }));
+  input.value = '';
+}
+
+function handleEvent(evt) {
+  switch (evt.type) {
+    case 'content_block_start':
+      if (evt.content_block?.type === 'tool_use') {
+        addToolBadge(evt.content_block.name || 'tool');
+      }
+      break;
+
+    case 'content_block_delta':
+      if (evt.delta?.type === 'text_delta' && evt.delta.text) {
+        appendAssistant(evt.delta.text);
+      }
+      break;
+
+    case 'content_block_stop':
+      break;
+
+    case 'message_start':
+      break;
+
+    case 'message_delta':
+      break;
+
+    case 'message_stop':
+      finalizeAssistant();
+      break;
+
+    case 'result':
+      if (evt.result && !currentText) {
+        appendAssistant(evt.result);
+      }
+      finalizeAssistant();
+      if (evt.session_id) {
+        addSystemMsg(`session: ${evt.session_id}`);
+      }
+      break;
+
+    case 'assistant':
+      if (evt.message?.content) {
+        for (const block of evt.message.content) {
+          if (block.type === 'text') appendAssistant(block.text);
+          if (block.type === 'tool_use') addToolBadge(block.name || 'tool');
+        }
+      }
+      break;
+
+    case 'system':
+      if (evt.session_id) addSystemMsg(`session: ${evt.session_id}`);
+      break;
+
+    default:
+      console.log('event:', evt.type, evt);
+  }
+}
+
+function appendAssistant(text) {
+  if (!currentMsg) {
+    currentMsg = document.createElement('div');
+    currentMsg.className = 'msg assistant';
+    document.getElementById('transcript').appendChild(currentMsg);
+  }
+  currentText += text;
+  currentMsg.textContent = currentText;
+  scrollToBottom();
+}
+
+function addToolBadge(name) {
+  if (!currentMsg) {
+    currentMsg = document.createElement('div');
+    currentMsg.className = 'msg assistant';
+    document.getElementById('transcript').appendChild(currentMsg);
+  }
+  const badge = document.createElement('span');
+  badge.className = 'tool-badge';
+  badge.textContent = name;
+  currentMsg.appendChild(document.createElement('br'));
+  currentMsg.appendChild(badge);
+  scrollToBottom();
+}
+
+function finalizeAssistant() {
+  if (currentText && ttsEnabled) {
+    speak(currentText);
+  }
+  currentMsg = null;
+  currentText = '';
+}
+
+function addUserMsg(text) {
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.textContent = text;
+  document.getElementById('transcript').appendChild(el);
+  scrollToBottom();
+}
+
+function addSystemMsg(text) {
+  const el = document.createElement('div');
+  el.className = 'msg system';
+  el.textContent = text;
+  document.getElementById('transcript').appendChild(el);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  const t = document.getElementById('transcript');
+  t.scrollTop = t.scrollHeight;
+}
+
+// --- Voice ---
+
+function toggleMic() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+function startRecording() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    addSystemMsg('Speech recognition not supported in this browser');
+    return;
+  }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    if (text.trim()) {
+      addUserMsg(text);
+      ws.send(JSON.stringify({ type: 'user_message', content: text }));
+    }
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    document.getElementById('micbtn').classList.remove('recording');
+  };
+
+  recognition.onerror = (e) => {
+    console.error('speech error:', e.error);
+    isRecording = false;
+    document.getElementById('micbtn').classList.remove('recording');
+  };
+
+  recognition.start();
+  isRecording = true;
+  document.getElementById('micbtn').classList.add('recording');
+}
+
+function stopRecording() {
+  if (recognition) {
+    recognition.stop();
+  }
+  isRecording = false;
+  document.getElementById('micbtn').classList.remove('recording');
+}
+
+function speak(text) {
+  if (!ttsEnabled || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 1.1;
+  window.speechSynthesis.speak(u);
+}
+
+function toggleTTS() {
+  ttsEnabled = !ttsEnabled;
+  document.getElementById('ttsbtn').classList.toggle('off', !ttsEnabled);
+  if (!ttsEnabled) window.speechSynthesis?.cancel();
+}
+
+// --- Init ---
+
+document.getElementById('msginput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// Auto-connect if token saved
+const saved = localStorage.getItem('relay_token');
+if (saved) {
+  document.getElementById('tokeninput').value = saved;
+  openSocket(saved);
+}
+</script>
+</body>
+</html>
