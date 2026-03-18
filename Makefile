@@ -1,10 +1,15 @@
+BINARY := claude-relay
+ifeq ($(OS),Windows_NT)
+	BINARY := claude-relay.exe
+endif
+
 .PHONY: build run clean
 
 build:
-	go build -o claude-relay.exe .
+	go build -o $(BINARY) .
 
 run: build
-	./claude-relay.exe --token dev --dir .
+	./$(BINARY) --token dev --dir .
 
 clean:
-	rm -f claude-relay.exe
+	rm -f claude-relay claude-relay.exe

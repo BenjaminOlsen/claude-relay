@@ -14,10 +14,11 @@ Claude Relay is a thin server that runs on your dev machine and exposes Claude C
 
 ```bash
 # Build
-go build -o claude-relay.exe .
+make build
+# or: go build -o claude-relay .
 
 # Run
-./claude-relay.exe --token YOUR_SECRET --dir /path/to/your/project
+./claude-relay --token YOUR_SECRET --dir /path/to/your/project
 ```
 
 Open `http://localhost:8080` on your phone or browser. Enter the token and start talking.
